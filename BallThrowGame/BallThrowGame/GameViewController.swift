@@ -13,21 +13,40 @@ import MultipeerConnectivity
 
 class GameViewController: UIViewController,MCBrowserViewControllerDelegate,MCSessionDelegate{
     var sceneCopy:SKScene!
+    var isConnected=false
+    var playerTwoPeerID:MCPeerID = MCPeerID(displayName: "Hello")
     func browserViewControllerDidFinish(_ browserViewController: MCBrowserViewController) {
         browser.dismiss(animated: true, completion: nil)
     }
-    
+    public func session(_ session: MCSession, didReceiveCertificate certificate: [Any]?, fromPeer peerID: MCPeerID, certificateHandler: @escaping (Bool) -> Void) {
+        playerTwoPeerID=peerID
+    }
     func browserViewControllerWasCancelled(_ browserViewController: MCBrowserViewController) {
         browser.dismiss(animated: true, completion: nil)
     }
-
+    
     public func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState){
-        
+        //connected
+        if state == MCSessionState.connected {
+            isConnected=true
+        }
+        if state == MCSessionState.notConnected{
+            if isConnected{//if it was connected
+                let alert = UIAlertController(title: "The connection was lost", message: "OOPS", preferredStyle: .alert)
+                alert.addAction(UIAlertAction(title: "Reconnect", style: UIAlertActionStyle.default, handler: { (action) in
+                    self.startOrEndSession(advertise: true)//new session
+                    self.connect()
+                }))
+                self.present(alert, animated: true, completion: nil)
+            }
+            
+            isConnected=false
+        }
     }
     
     // Received data from remote peer.
     public func session(_ session: MCSession, didReceive data: Data, fromPeer peerID: MCPeerID){
-        let velocityArray:[String:String]=try! JSONSerialization.jsonObject(with: data, options: JSONSerialization.ReadingOptions.mutableContainers) as! [String:String]
+        var velocityArray:[String:String]=try! JSONSerialization.jsonObject(with: data, options: JSONSerialization.ReadingOptions.mutableContainers) as! [String:String]
         (sceneCopy as! GameScene).createABox(x:(velocityArray.first?.key)!, y:(velocityArray.first?.value)!)
     }
     
@@ -48,18 +67,18 @@ class GameViewController: UIViewController,MCBrowserViewControllerDelegate,MCSes
     public func session(_ session: MCSession, didFinishReceivingResourceWithName resourceName: String, fromPeer peerID: MCPeerID, at localURL: URL?, withError error: Error?){
         
     }
-
+    
     
     @IBOutlet var forceFielPlacer: UILongPressGestureRecognizer!
     @IBOutlet var brickLauncher: UIPanGestureRecognizer!
-     // mpc stuff
-    var peerId:MCPeerID!
+    // mpc stuff
+    var playerOnePeerID:MCPeerID!
     var session:MCSession!
     var browser:MCBrowserViewController!
     var advertiser:MCAdvertiserAssistant!
     func startOrEndSession(advertise:Bool){
-        peerId=MCPeerID(displayName: UIDevice.current.name)
-        session=MCSession(peer: peerId)
+        playerOnePeerID=MCPeerID(displayName: UIDevice.current.name)
+        session=MCSession(peer: playerOnePeerID, securityIdentity: nil, encryptionPreference: MCEncryptionPreference.none)
         session.delegate = self
         browser=MCBrowserViewController(serviceType: "HelloDubaiah", session: session)
         if advertise{
@@ -94,6 +113,7 @@ class GameViewController: UIViewController,MCBrowserViewControllerDelegate,MCSes
         }
         startOrEndSession(advertise: true)
     }
+    
     override var shouldAutorotate: Bool {
         return true
     }
@@ -104,12 +124,12 @@ class GameViewController: UIViewController,MCBrowserViewControllerDelegate,MCSes
             return .all
         }
     }
-
+    
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Release any cached data, images, etc that aren't in use.
     }
-
+    
     override var prefersStatusBarHidden: Bool {
         return true
     }
